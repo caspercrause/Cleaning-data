@@ -1,0 +1,125 @@
+---
+title: "Cleaning data"
+author: "CCrause"
+output:
+  html_document:
+    df_print: paged
+  word: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Using exploring the enhanced tidyr version 1.0.0
+First Import the raw data.
+I used weather data 
+Upon first inspection I wanted to change a couple of things
+1. Rows are stored as variables X1 - X31 represent days of the month
+2. Variable names are stored as rows. Max and mean temperature are variable and should ideally be represented in their own column
+3. The first column called X is reduntant as X1 - X31 already captured the data on every day of the month so I'll remove it and change all column names to lower case
+
+```{r Cleaning data, echo=TRUE, message=FALSE, warning=FALSE}
+library(tidyverse)
+weather_raw <- readr::read_rds('weather.rds')
+
+weather_tbl <-  weather_raw %>%  select(-X) %>% 
+ set_names(names(.) %>% tolower)
+weather_tbl %>% glimpse()
+```
+
+
+## Making wide datasets long
+All the columns that  start with the letter 'X' represent days of the month
+so there are really just 2 variables: the day and then the measurement
+```{r Wide_long}
+
+weather_tbl %>% pivot_longer(cols      = starts_with('x'),
+                             names_to  = 'day',
+                             values_to = 'measurement')
+
+```
+## Aditional tweaks
+This worked very well but I dont like the x in front of the day, because it forces the column type to take on a character value. You can remove the 'prefix' and then  convert the type very easily by adding two additional arguments namely names_prefix and names_ptypes. I also dropped all the NA values
+
+```{r}
+weather_tbl %>% pivot_longer(cols           = starts_with('x'),
+                             names_to       = 'day',
+                             values_to      = 'measurement',
+                             values_drop_na = T,
+                             names_prefix   = 'x',
+                             names_ptypes   = list(day = integer()))
+```
+## Making the dataset wider
+The column "measure" contains different variables that would be better displayed in their own column! Enter pivot_wider 
+So grab the  new column names from the "measure" column and grab the values from the "measurement" column.
+```{r wider}
+ weather_tbl %>% pivot_longer(cols          = starts_with('x'),
+                             names_to       = 'day',
+                             values_to      = 'measurement',
+                             values_drop_na = T,
+                             names_prefix   = 'x',
+                             names_ptypes   = list(day = integer())) %>% 
+     pivot_wider(names_from                 = measure,values_from = measurement)
+```
+## Finishing touches
+
+This is almost done! I would like to combine three columns namely year, month and day into a column called date. Let's use the unite function
+```{r unite}
+ weather_tbl %>% pivot_longer(cols          = starts_with('x'),
+                             names_to       = 'day',
+                             values_to      = 'measurement',
+                             values_drop_na = T,
+                             names_prefix   = 'x',
+                             names_ptypes   = list(day = integer())) %>% 
+     pivot_wider(names_from                 = measure,values_from = measurement) %>% 
+     unite(date, year, month,day, sep = '/')
+```
+
+## Type conversions
+Lastly I can see that  a lot of columns contain numeric data, but are stored as text. Every column except date and events should be converted to numeric.
+
+```{r}
+ weather_tbl %>% pivot_longer(cols          = starts_with('x'),
+                             names_to       = 'day',
+                             values_to      = 'measurement',
+                             values_drop_na = T,
+                             names_prefix   = 'x',
+                             names_ptypes   = list(day = integer())) %>% 
+     pivot_wider(names_from                 = measure,values_from = measurement) %>% 
+     unite(date, year, month,day, sep = '/') %>% glimpse()
+```
+
+```{r long}
+ weather_tbl %>% pivot_longer(cols          = starts_with('x'),
+                             names_to       = 'day',
+                             values_to      = 'measurement',
+                             values_drop_na = T,
+                             names_prefix   = 'x',
+                             names_ptypes   = list(day = integer())) %>% 
+     pivot_wider(names_from                 = measure,values_from = measurement) %>% 
+     unite(date, year, month,day, sep = '/') %>% 
+     select(date,Events, everything()) %>% 
+     mutate_at(vars(Max.TemperatureF:WindDirDegrees), funs(as.numeric)) 
+
+```
+## Convert the date column from text to date
+
+Magrittr (the pipe '%>%')  makes it super easy to chain many different functions into one another. It also makes it very easy to follow someone's train of thought. It improves the readability of code and, hence, makes it much easier to debug incorrect code!
+```{r date, warning=FALSE}
+(weather_tbl2 <-  weather_tbl %>% pivot_longer(cols = starts_with('x'),
+                             names_to               = 'day',
+                             values_to              = 'measurement',
+                             values_drop_na         = T,
+                             names_prefix           = 'x',
+                             names_ptypes           = list(day = integer())) %>% 
+     pivot_wider(names_from    = measure,
+                 values_from   = measurement) %>% 
+     unite(date, year, month,day, sep = '/') %>% 
+     select(date,Events, everything()) %>% 
+     mutate_at(vars(Max.TemperatureF:WindDirDegrees), funs(as.numeric)) %>% 
+     mutate(date=lubridate::ymd(date)))
+
+```
+

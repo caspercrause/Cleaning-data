@@ -1,0 +1,146 @@
+---
+title: "Handling missing values and Outliers"
+
+output: word_document
+
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T)
+```
+## Loading the weather-data that is semi wrangled
+Previously I wrangled a dataset that contained weather data. With this presentation I plan to check for outliers, look for missing value and explore the different ways of dealing with NA values and experiment with some basic functional programming and filtering time-series data. 
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(DataExplorer)
+weather_data_pivot_tbl = readr::read_rds('weather_data_pivoted.rds')
+glimpse(weather_data_pivot_tbl)
+
+
+```
+
+## Type Conversions
+The Events column contains data that can be categorised into different classes. Such as Rain day, Rain Snow etc.
+
+- I'll  replace the blank rows with the text "None"
+
+- I'll start by converting this column to a factor.
+
+- I'll convert the date column to from character type to a date type 
+```{r converting classes}
+# Replace the blanks in the Events column with 'None'
+
+# Method 1:
+# weather_data_pivot_tbl$Events[weather_data_pivot_tbl$Events==""] <- 'None'
+
+# (weather_data_clean_tbl <- weather_data_pivot_tbl %>% mutate(Events = Events %>%  as_factor(),
+# date = lubridate::ymd(date) ) )
+
+# Method 2:
+(weather_data_clean_tbl <- weather_data_pivot_tbl %>% 
+  mutate(Events = case_when(
+    Events == "" ~ 'None',
+    TRUE         ~ Events
+  ) %>% as.factor()) %>% 
+  mutate(date = date %>% lubridate::ymd())
+)
+# Tip: To simultaneously assign an expression to a variable and have it printed to the console, one can wrap the entire expression in parentheses  e.g ( y <- mean(x))
+
+```
+Use the summary() function to get a good feel for the distribution of data within the dataset. This is a very handy way to detect outliers and missing values
+
+```{r summary}
+summary(weather_data_clean_tbl)
+```
+## Screening and handling outliers
+There seems to be obvious outliers in the Mean.VisibilityMiles column and the Max.Humidity column. 
+```{r}
+plot(weather_data_clean_tbl$date, weather_data_clean_tbl$Max.Humidity,
+     ylab = 'Maximum Humidity',
+     xlab ='Date' 
+        )
+# Whatever the cause, this is clearly an invalid data point and needs to be fixed. I'm assuming that it is out by a factor of 10 and dropping a zero should do the trick
+```
+```{r Max Humidity}
+# To quickly find the row number of this error, the which.max() from the base package is very handy
+
+weather_data_clean_tbl$Max.Humidity %>% which.max()
+```
+```{r Which max row number}
+# the row number is 142 and can be quickly navigated to using dplyr's slice function
+weather_data_clean_tbl %>% slice(142) %>% glimpse()
+
+# Let's knock off a zero from 1000 and replace it with 100
+weather_data_clean_tbl$Max.Humidity[142] <- 100
+```
+## Further (not so obvious) errors 
+
+When looking at a summary of the mean visibility miles, there appears to be another error. Miles cannot be negative? Let's replace it to be 1
+```{r}
+summary(weather_data_clean_tbl$Mean.VisibilityMiles)
+min = which.min(weather_data_clean_tbl$Mean.VisibilityMiles)
+weather_data_clean_tbl$Mean.VisibilityMiles[min] <- 10
+
+```
+
+## Handling NA Values
+One of the most common problems when working with a dataset is missing values and can be a cause of great trouble that requires careful thought. Recall the 3 types of missing Data.
+- Missing completely at random (no relationship between missing data and cirumstances)
+- Missing at random (Circumstances cause some data to be missing)
+- Missing not at random (Cirumstances cause data to be missing, but value that is missing is related to the reason that data is missing )
+
+## Adressing the missing values
+Fixing NA values require subject matter expertise and with this data set I chose to replace NA's by imputation. I'll replace them with the median.
+
+I chose to replace them with the median because
+- The mean is sensitive to outliers
+- The median is robust to outliers - not as heavily impacted by skewed data as the mean. 
+
+## Let's get the percentage-wise NA's per column relative to the rest of the data set with three different methods
+- summarise_all
+- map()
+- plot_missing()
+
+Using `summarise_all()` 
+```{r functional programming}
+
+# Method 1 :
+
+weather_data_clean_tbl %>% summarise_all(~ is.na(.) %>% sum()/length(.)*100) %>% glimpse()
+
+
+```
+
+
+## Using `purrr::map_df()`
+```{r}
+# Method 2:
+
+weather_data_clean_tbl %>% 
+  map_df(~is.na(.) %>% sum()/length(.)*100) %>%
+  gather() %>% 
+  filter(value>0)
+```
+
+
+##  Using `DataExplorer:: plot_missing()`
+```{r }
+# Method3 :
+weather_data_clean_tbl %>% plot_missing()
+```
+
+
+## Replacing values programmatically 
+```{r imputation}
+# The expression reads as follows: If the column is of numeric type, Scan them for NA's and if you find them, replace it with the  median value of that column, otherwise leave the value as it is
+(weather_data_clean_tbl2 <-  weather_data_clean_tbl %>% 
+     mutate_if(is.numeric, ~if_else(condition = is.na(.),
+                                    true = median(.,na.rm = TRUE),
+                                    false = .))
+ )
+
+# Check for NA values again using the summary fucntion
+summary(weather_data_clean_tbl2)
+```
+
