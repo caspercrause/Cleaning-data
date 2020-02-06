@@ -84,22 +84,25 @@ weather_data_pivot_tbl$Max.Humidity[142] <- 100
 
 When looking at a summary of the mean visibility miles, there appears to be another error. Miles cannot be negative? Let's replace it to be 1
 ```{r}
-summary(weather_data_pivot_tbl$Mean.VisibilityMiles)
-min = which.min(weather_data_pivot_tbl$Mean.VisibilityMiles)
+min <-  which.min(weather_data_pivot_tbl$Mean.VisibilityMiles)
 weather_data_pivot_tbl$Mean.VisibilityMiles[min] <- 10
 
 ```
 
 ## Handling NA Values
-One of the most common problems when working with a dataset is missing values and can be a cause of great trouble that requires careful thought. Recall the 3 types of missing Data.
-- Missing completely at random (no relationship between missing data and cirumstances)
-- Missing at random (Circumstances cause some data to be missing)
-- Missing not at random (Cirumstances cause data to be missing, but value that is missing is related to the reason that data is missing )
+
+One of the most common problems when working with a dataset is missing values and can be a cause of great trouble that requires careful thought. Recall the 3 types of missing data.
+
+1. Missing completely at random (no relationship between missing data and cirumstances)
+2. Missing at random (Circumstances cause some data to be missing)
+3. Missing not at random (Cirumstances cause data to be missing, but value that is missing is related to the reason that data is missing )
 
 ## Adressing the missing values
+
 Fixing NA values require subject matter expertise and with this data set I chose to replace NA's by imputation. I'll replace them with the median.
 
-I chose to replace them with the median because
+I chose to replace them with the median because:
+
 - The mean is sensitive to outliers
 - The median is robust to outliers - not as heavily impacted by skewed data as the mean. 
 
@@ -125,7 +128,7 @@ weather_data_pivot_tbl %>% summarise_all(~ is.na(.) %>% sum()/length(.)*100) %>%
 weather_data_pivot_tbl %>% 
   map_df(~is.na(.) %>% sum()/length(.)*100) %>%
   gather() %>% 
-  filter(value>0)
+  filter(value >0 )
 ```
 
 
@@ -137,15 +140,28 @@ weather_data_pivot_tbl %>% plot_missing()
 
 
 ## Replacing values programmatically 
+
+The expression reads as follows: If the column is of numeric type, Scan them for NA's and if you find them, replace it with the  median value of that column, otherwise leave the value as it is. 
+
 ```{r imputation}
-# The expression reads as follows: If the column is of numeric type, Scan them for NA's and if you find them, replace it with the  median value of that column, otherwise leave the value as it is
+
 (weather_data_pivot_tbl2 <-  weather_data_pivot_tbl %>% 
-     mutate_if(is.numeric, ~if_else(condition = is.na(.),
-                                    true = median(.,na.rm = TRUE),
-                                    false = .))
+     mutate_if(is.numeric, ~ if_else(condition = is.na(.),
+                                    true       = median(.,na.rm = TRUE),
+                                    false      = .))
  )
 
-# Check for NA values again using the summary fucntion
-summary(weather_data_pivot_tbl2)
+```
+Note that there are still `r nrow(weather_data_pivot_tbl2)` rows. ⬆️
+
+
+
+Check for NA values again using the ___`DataExplorer::plot_missing()`___fucntion ⬇️
+
+```{r}
+weather_data_pivot_tbl2 %>% 
+  plot_missing()
+
+
 ```
 
